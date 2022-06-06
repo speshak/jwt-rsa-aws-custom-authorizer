@@ -1,0 +1,76 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Auth0 API GW Authorizer
+
+Parameters:
+  TokenIssuer:
+    Type: String
+    Description: |
+      The issuer of the token. If you're using Auth0 as the token issuer, this
+      would be https://your-tenant.auth0.com/
+
+  JwksUri:
+    Type: String
+    Description: |
+      This is the URL of the associated JWKS endpoint. If you are using Auth0
+      as the token issuer, this would be
+      https://your-tenant.auth0.com/.well-known/jwks.json
+
+  Audience:
+    Type: String
+    Description: |
+      This is the required audience of the token. If you are using Auth0 as the
+      Authorization Server, the audience value is the same thing as your API
+      Identifier for the specific API in your APIs section.
+
+Resources:
+  InvokeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - "apigateway.amazonaws.com"
+                - "lambda.amazonaws.com"
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: DataWrite
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "lambda:InvokeFunction"
+                Resource:
+                  - !GetAtt AuthorizerFunction.Arn
+
+  AuthorizerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Auth0 API GW authorizer
+      Runtime: nodejs14.x
+      CodeUri: ./src
+      Handler: index.handler
+      Timeout: 30
+
+      Environment:
+        Variables:
+          TOKEN_ISSUER: !Ref TokenIssuer
+          JWKS_URI: !Ref JwksUri
+          AUDIENCE: !Ref Audience
+
+Outputs:
+  AuthorizerName:
+    Value: !Ref AuthorizerFunction
+
+  AuthorizerArn:
+    Value: !GetAtt AuthorizerFunction.Arn
+
+  InvokeRoleArn:
+    Value: !GetAtt InvokeRole.Arn
